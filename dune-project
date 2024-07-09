@@ -23,4 +23,5 @@
   (ocaml
    (>= 5.1.0))
   (caqti-eio (= 2.1.1))
+  (caqti-driver-sqlite3 (= 2.1.1))
   dune eio_main cohttp-eio yojson))
