@@ -1,0 +1,4 @@
+(executable
+ (public_name ocaml_web_todo)
+ (name main)
+ (libraries ocaml_web_todo))
