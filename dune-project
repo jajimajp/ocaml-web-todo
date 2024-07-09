@@ -19,4 +19,8 @@
  (name ocaml_web_todo)
  (synopsis "Todo app with ocaml http backend")
  (description "Todo app with ocaml http backend")
- (depends ocaml dune))
+ (depends 
+  (ocaml
+   (>= 5.1.0))
+  (caqti-eio (= 2.1.1))
+  dune eio_main cohttp-eio yojson))
