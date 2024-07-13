@@ -61,6 +61,7 @@ const App = () => {
       api
         .postTodo({ title, completed: false })
         .then((res) => {
+          console.log({ res })
           setTodos([...todos, res]);
           setNewTodo('');
         });

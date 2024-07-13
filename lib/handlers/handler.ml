@@ -14,13 +14,33 @@ let todos conn =
     |> fun l -> `List l
     |> to_string
 
+let add conn title =
+  match Models.Todo.add conn title with
+  | Error err -> Printf.sprintf "{ \"error\": \"%s\" }" (Caqti_error.show err)
+  | Ok (id, title, completed) -> 
+    Printf.sprintf
+      "{ \"id\": %d, \"title\": \"%s\", \"completed\": %s }"
+      id title (if completed then "true" else "false")
+      
+let update conn id title completed =
+  match Models.Todo.update conn id title completed with
+  | Error err -> Printf.sprintf "{ \"error\": \"%s\" }" (Caqti_error.show err)
+  | Ok (id, title, completed) -> 
+    Printf.sprintf
+      "{ \"id\": %d, \"title\": \"%s\", \"completed\": %s }"
+      id title (if completed then "true" else "false")
+
+let delete conn id =
+  match Models.Todo.delete conn id with
+  | Error err -> Printf.sprintf "{ \"error\": \"%s\" }" (Caqti_error.show err)
+  | Ok () -> "{ \"success\": true }"
+
 let ( / ) = Eio.Path.( / )
 
 let rec last_exn = function
 | [] -> raise Not_found
 | [x] -> x
 | _ :: t -> last_exn t
-
 
 let content_type (path: 'a Eio.Path.t) =
   let _, pathname = path in
@@ -33,9 +53,30 @@ let content_type (path: 'a Eio.Path.t) =
 
 let handler env conn =
   fun _socket request _body ->
-    match Http.Request.resource request with
-    | "/todos" -> Cohttp_eio.Server.respond_string ~status:`OK ~body:(todos conn) ()
-    | _ -> (* serve static files *)
+    let resource = Http.Request.resource request in
+    if Str.string_match (Str.regexp "^/todos/?\\(.*\\)$") resource 0 then
+      let open Yojson.Basic.Util in
+      let headers = (Http.Header.of_list [ ("Content-Type", "application/json") ]) in
+      begin match Http.Request.meth request with
+      | `GET -> Cohttp_eio.Server.respond_string ~headers ~status:`OK ~body:(todos conn) ()
+      | `POST ->
+        let body = Eio.Flow.read_all _body in
+        let json = from_string body in
+        let title = json |> member "title" |> to_string in
+        Cohttp_eio.Server.respond_string ~headers ~status:`Created ~body:(add conn title) ()
+      | `PUT ->
+        let id = Str.matched_group 1 resource |> int_of_string in
+        let body = Eio.Flow.read_all _body in
+        let json = from_string body in
+        let title = json |> member "title" |> to_string in
+        let completed = json |> member "completed" |> to_bool in
+        Cohttp_eio.Server.respond_string ~headers ~status:`OK ~body:(update conn id title completed) ()
+      | `DELETE ->
+        let id = Str.matched_group 1 resource |> int_of_string in
+        Cohttp_eio.Server.respond_string ~headers ~status:`OK ~body:(delete conn id) ()
+      | _ -> Cohttp_eio.Server.respond_string ~status:`Method_not_allowed ~body:"405 Method Not Allowed" ()
+      end
+    else (* serve static files *)
       if Http.Request.meth request <> `GET then
         Cohttp_eio.Server.respond_string ~status:`Method_not_allowed ~body:"405 Method Not Allowed" ()
       else
