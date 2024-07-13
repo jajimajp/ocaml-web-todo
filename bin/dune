@@ -1,4 +1,4 @@
 (executable
  (public_name ocaml_web_todo)
  (name main)
- (libraries ocaml_web_todo uri caqti-eio.unix caqti-driver-sqlite3 eio_main))
+ (libraries handlers uri caqti-eio.unix caqti-driver-sqlite3 eio_main cohttp-eio))

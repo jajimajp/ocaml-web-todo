@@ -1,0 +1,3 @@
+(library
+ (name models)
+ (libraries uri caqti-eio.unix caqti-driver-sqlite3 eio_main))

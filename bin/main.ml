@@ -1,33 +1,23 @@
-let with_conn f ~stdenv =
-  let uri = Uri.of_string "sqlite3://" in
-  Caqti_eio_unix.with_connection uri ~stdenv f
+let log_warning exn =
+  Printf.eprintf "Warning: %s\n%!" (Printexc.to_string exn)
 
-(* module `Q` contains our query definitions *)
-module Q = struct
-  open Caqti_request.Infix
-
-  let add =
-    Caqti_type.(t2 int int ->! int)
-    "SELECT ? + ?"
-end
-
-let add a b (conn : Caqti_eio.connection) =
-  let module Conn = (val conn : Caqti_eio.CONNECTION) in
-  Conn.find Q.add (a, b)
-
-open Printf
-
-type data = int
-
-let main (env : Eio_unix.Stdenv.base) =
-  let ( let* ) = Result.bind in
-  let program : (data, 'err) result =
-    with_conn ~stdenv:(env :> Caqti_eio.stdenv) @@ fun conn ->
-      let* sum = add 1 2 conn in
-      Ok sum in
-
-  match program with
-  | Error err -> failwith (sprintf "Error: %s" (Caqti_error.show err))
-  | Ok sum -> printf "Sum: %d\n" sum
-
-let () = Eio_main.run main
+let () =
+  let port = ref 8080 in
+  Eio_main.run @@ fun env ->
+  Eio.Switch.run @@ fun sw ->
+    let conn = Caqti_eio_unix.connect
+                  ~sw
+                  ~stdenv:(env :> Caqti_eio.stdenv)
+                  (Uri.of_string "sqlite3://:test") in
+    let conn = match conn with
+      | Ok conn -> conn
+      | Error err -> failwith (Printf.sprintf "Error: %s" (Caqti_error.show err)) in
+    let handler = Handlers.Handler.handler env conn in
+    let rec loop () =
+      let socket =
+        Eio.Net.listen env#net ~sw ~backlog:128 ~reuse_addr:true
+        (`Tcp (Eio.Net.Ipaddr.V4.loopback, !port))
+      and server = Cohttp_eio.Server.make ~callback:handler () in
+      Cohttp_eio.Server.run socket server ~on_error:log_warning
+      loop () in
+    loop ()
